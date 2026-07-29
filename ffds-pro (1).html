@@ -1,0 +1,2557 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FFDS PRO — Forest Fire Detection System</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-void: #050A07;
+    --bg-base: #080E0A;
+    --bg-panel: #0C1810;
+    --bg-card: #111D14;
+    --bg-card-hover: #162318;
+    --bg-input: #0E1A11;
+    --border: #1E3326;
+    --border-bright: #2A4A34;
+    --accent-green: #00E676;
+    --accent-green-dim: #00A854;
+    --accent-green-glow: rgba(0,230,118,0.12);
+    --accent-fire: #FF5722;
+    --accent-fire-glow: rgba(255,87,34,0.15);
+    --accent-amber: #FFB300;
+    --accent-amber-glow: rgba(255,179,0,0.12);
+    --accent-red: #F44336;
+    --accent-red-glow: rgba(244,67,54,0.15);
+    --accent-cyan: #00BCD4;
+    --text-primary: #D4EDD8;
+    --text-secondary: #7FA888;
+    --text-muted: #4A6B52;
+    --text-label: #3D5C44;
+    --font-display: 'Space Grotesk', sans-serif;
+    --font-body: 'Inter', sans-serif;
+    --font-mono: 'Space Mono', monospace;
+    --radius-sm: 4px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --shadow-panel: 0 0 0 1px var(--border), 0 4px 24px rgba(0,0,0,0.4);
+    --shadow-glow-green: 0 0 20px rgba(0,230,118,0.08);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { font-size: 14px; scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg-void);
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Scanline overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.03) 2px,
+      rgba(0,0,0,0.03) 4px
+    );
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  /* ─── TOPBAR ─── */
+  .topbar {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 100;
+    height: 56px;
+    background: rgba(5,10,7,0.95);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    gap: 0;
+  }
+
+  .topbar-brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding-right: 24px;
+    border-right: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .brand-icon {
+    width: 32px;
+    height: 32px;
+    background: linear-gradient(135deg, #00E676, #00A854);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    box-shadow: 0 0 16px rgba(0,230,118,0.3);
+  }
+
+  .brand-text {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .brand-name {
+    font-family: var(--font-display);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: 0.05em;
+  }
+
+  .brand-sub {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--text-muted);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+  }
+
+  .topbar-station {
+    padding: 0 20px;
+    border-right: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .station-label {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--text-muted);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 2px;
+  }
+
+  .station-name {
+    font-family: var(--font-display);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent-green);
+  }
+
+  .topbar-ticker {
+    flex: 1;
+    padding: 0 20px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .ticker-inner {
+    display: flex;
+    gap: 40px;
+    animation: ticker 30s linear infinite;
+    white-space: nowrap;
+  }
+
+  @keyframes ticker {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+  }
+
+  .ticker-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+  }
+
+  .ticker-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--accent-green);
+    box-shadow: 0 0 6px var(--accent-green);
+  }
+
+  .ticker-dot.fire { background: var(--accent-fire); box-shadow: 0 0 6px var(--accent-fire); }
+  .ticker-dot.amber { background: var(--accent-amber); box-shadow: 0 0 6px var(--accent-amber); }
+
+  .topbar-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-left: 20px;
+    border-left: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .status-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-secondary);
+  }
+
+  .status-pill .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent-green);
+    box-shadow: 0 0 8px var(--accent-green);
+    animation: pulse-green 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse-green {
+    0%, 100% { opacity: 1; box-shadow: 0 0 8px var(--accent-green); }
+    50% { opacity: 0.6; box-shadow: 0 0 3px var(--accent-green); }
+  }
+
+  .siren-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    background: rgba(244,67,54,0.1);
+    border: 1px solid rgba(244,67,54,0.3);
+    border-radius: 4px;
+    color: #F44336;
+    font-family: var(--font-display);
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    letter-spacing: 0.05em;
+    transition: all 0.2s;
+  }
+
+  .siren-btn:hover {
+    background: rgba(244,67,54,0.2);
+    border-color: #F44336;
+    box-shadow: 0 0 16px rgba(244,67,54,0.2);
+  }
+
+  .clock {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-secondary);
+    padding: 0 8px;
+    border-left: 1px solid var(--border);
+    margin-left: 4px;
+  }
+
+  /* ─── NAV TABS ─── */
+  .nav-tabs {
+    position: fixed;
+    top: 56px;
+    left: 0;
+    right: 0;
+    z-index: 99;
+    height: 40px;
+    background: rgba(8,14,10,0.97);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: stretch;
+    padding: 0 20px;
+    gap: 2px;
+    overflow-x: auto;
+  }
+
+  .nav-tab {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 14px;
+    font-family: var(--font-display);
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+    letter-spacing: 0.03em;
+    white-space: nowrap;
+    border: none;
+    background: none;
+  }
+
+  .nav-tab:hover { color: var(--text-secondary); }
+
+  .nav-tab.active {
+    color: var(--accent-green);
+    border-bottom: 2px solid var(--accent-green);
+  }
+
+  [id^="tab-"] { scroll-margin-top: 108px; }
+
+  .tab-badge {
+    background: var(--accent-fire);
+    color: white;
+    font-size: 9px;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 8px;
+  }
+
+  /* ─── MAIN LAYOUT ─── */
+  .main {
+    margin-top: 96px;
+    padding: 16px;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  /* ─── HERO ROW ─── */
+  .hero-row {
+    display: grid;
+    grid-template-columns: 280px 1fr 280px;
+    gap: 12px;
+    height: 200px;
+  }
+
+  /* ─── FIRE RISK HERO ─── */
+  .fire-risk-hero {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .fire-risk-hero::before {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 180px; height: 180px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(0,230,118,0.05) 0%, transparent 70%);
+    animation: breathe 3s ease-in-out infinite;
+  }
+
+  @keyframes breathe {
+    0%, 100% { transform: translate(-50%,-50%) scale(1); opacity: 1; }
+    50% { transform: translate(-50%,-50%) scale(1.1); opacity: 0.6; }
+  }
+
+  .risk-ring-container {
+    position: relative;
+    width: 120px;
+    height: 120px;
+    margin-bottom: 10px;
+  }
+
+  .risk-ring-svg {
+    width: 120px;
+    height: 120px;
+    transform: rotate(-90deg);
+  }
+
+  .risk-ring-bg {
+    fill: none;
+    stroke: var(--border);
+    stroke-width: 4;
+  }
+
+  .risk-ring-fill {
+    fill: none;
+    stroke: var(--accent-green);
+    stroke-width: 4;
+    stroke-linecap: round;
+    stroke-dasharray: 314;
+    stroke-dashoffset: 251;
+    filter: drop-shadow(0 0 6px var(--accent-green));
+    animation: ring-pulse 3s ease-in-out infinite;
+  }
+
+  @keyframes ring-pulse {
+    0%, 100% { filter: drop-shadow(0 0 6px var(--accent-green)); }
+    50% { filter: drop-shadow(0 0 12px var(--accent-green)); }
+  }
+
+  .risk-label-center {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+  }
+
+  .risk-level-text {
+    font-family: var(--font-display);
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--accent-green);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .risk-fwi-val {
+    font-family: var(--font-mono);
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary);
+    display: block;
+  }
+
+  .risk-title {
+    font-family: var(--font-display);
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-muted);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    text-align: center;
+  }
+
+  .risk-subtitle {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--text-muted);
+    text-align: center;
+    margin-top: 2px;
+  }
+
+  /* ─── KPI STRIP ─── */
+  .kpi-strip {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 10px;
+  }
+
+  .kpi-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+
+  .kpi-card:hover { border-color: var(--border-bright); }
+
+  .kpi-card::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--accent-green);
+    opacity: 0.5;
+  }
+
+  .kpi-card.amber::after { background: var(--accent-amber); }
+  .kpi-card.fire::after { background: var(--accent-fire); }
+  .kpi-card.cyan::after { background: var(--accent-cyan); }
+
+  .kpi-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+
+  .kpi-label {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--text-muted);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .kpi-icon {
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    background: var(--accent-green-glow);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+  }
+
+  .kpi-card.amber .kpi-icon { background: var(--accent-amber-glow); }
+  .kpi-card.fire .kpi-icon { background: var(--accent-fire-glow); }
+
+  .kpi-value {
+    font-family: var(--font-display);
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--text-primary);
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+
+  .kpi-unit {
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--text-muted);
+  }
+
+  .kpi-footer {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--text-muted);
+  }
+
+  .kpi-trend {
+    color: var(--accent-green);
+    font-size: 10px;
+  }
+
+  .kpi-trend.down { color: var(--accent-fire); }
+
+  /* ─── SYSTEM STATUS ─── */
+  .system-status-panel {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .panel-label {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--text-muted);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+
+  .node-status-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 10px;
+    background: var(--bg-panel);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+  }
+
+  .node-id {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-secondary);
+    font-weight: 700;
+  }
+
+  .node-metrics {
+    display: flex;
+    gap: 10px;
+  }
+
+  .node-metric {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--text-muted);
+  }
+
+  .node-metric span {
+    color: var(--accent-green);
+  }
+
+  .online-badge {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--accent-green);
+  }
+
+  .online-badge .dot {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: var(--accent-green);
+    animation: pulse-green 1.5s ease-in-out infinite;
+  }
+
+  .online-badge.offline { color: var(--accent-fire); }
+  .online-badge.offline .dot {
+    background: var(--accent-fire);
+    animation: none;
+    box-shadow: 0 0 6px var(--accent-fire);
+  }
+
+  /* ─── GRID ROW 2 ─── */
+  .grid-row-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 340px;
+    gap: 12px;
+  }
+
+  /* ─── PANEL BASE ─── */
+  .panel {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+  }
+
+  .panel-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .panel-title {
+    font-family: var(--font-display);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .panel-title-icon {
+    width: 18px; height: 18px;
+    border-radius: 3px;
+    background: var(--accent-green-glow);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+  }
+
+  .live-badge {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    border-radius: 10px;
+    background: rgba(0,230,118,0.08);
+    border: 1px solid rgba(0,230,118,0.2);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--accent-green);
+  }
+
+  .live-badge .dot {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: var(--accent-green);
+    animation: pulse-green 1.5s ease-in-out infinite;
+  }
+
+  .live-badge.offline {
+    background: rgba(244,67,54,0.08);
+    border-color: rgba(244,67,54,0.2);
+    color: var(--accent-fire);
+  }
+
+  .live-badge.offline .dot {
+    background: var(--accent-fire);
+    animation: none;
+  }
+
+  /* ─── SENSOR GRID ─── */
+  .sensor-grid {
+    padding: 12px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .sensor-cell {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .sensor-cell-label {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--text-muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .sensor-cell-value {
+    font-family: var(--font-display);
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-primary);
+    line-height: 1;
+  }
+
+  .sensor-cell-unit {
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--text-muted);
+  }
+
+  .sensor-bar {
+    height: 2px;
+    background: var(--border);
+    border-radius: 1px;
+    overflow: hidden;
+    margin-top: 4px;
+  }
+
+  .sensor-bar-fill {
+    height: 100%;
+    background: var(--accent-green);
+    border-radius: 1px;
+    transition: width 1s ease;
+  }
+
+  .sensor-bar-fill.amber { background: var(--accent-amber); }
+  .sensor-bar-fill.fire { background: var(--accent-fire); }
+
+  /* ─── CAMERA GRID ─── */
+  .camera-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2px;
+    padding: 8px;
+  }
+
+  .camera-feed {
+    background: #000;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    aspect-ratio: 16/9;
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .camera-feed-inner {
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, #0a1a0c, #050e07);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Simulated night-vision forest */
+  .camera-feed-inner::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse at 30% 70%, rgba(20,80,30,0.4) 0%, transparent 60%),
+      radial-gradient(ellipse at 70% 60%, rgba(15,60,25,0.3) 0%, transparent 50%),
+      radial-gradient(ellipse at 50% 80%, rgba(10,50,20,0.5) 0%, transparent 70%);
+  }
+
+  .camera-feed-inner::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 3px,
+      rgba(0,0,0,0.08) 3px,
+      rgba(0,0,0,0.08) 4px
+    );
+  }
+
+  .cam-overlay-top {
+    position: absolute;
+    top: 6px; left: 6px; right: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    z-index: 2;
+  }
+
+  .cam-id {
+    font-family: var(--font-mono);
+    font-size: 8px;
+    color: rgba(0,230,118,0.8);
+    letter-spacing: 0.1em;
+  }
+
+  .cam-live {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    font-family: var(--font-mono);
+    font-size: 8px;
+    color: rgba(0,230,118,0.8);
+  }
+
+  .cam-live-dot {
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    background: var(--accent-green);
+    animation: pulse-green 1.5s infinite;
+  }
+
+  .cam-overlay-bottom {
+    position: absolute;
+    bottom: 6px; left: 6px; right: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    z-index: 2;
+  }
+
+  .cam-timestamp {
+    font-family: var(--font-mono);
+    font-size: 8px;
+    color: rgba(0,230,118,0.6);
+  }
+
+  .cam-temp-badge {
+    font-family: var(--font-mono);
+    font-size: 8px;
+    color: rgba(0,230,118,0.7);
+    background: rgba(0,0,0,0.5);
+    padding: 1px 5px;
+    border-radius: 2px;
+  }
+
+  /* Tree silhouettes */
+  .cam-trees {
+    position: absolute;
+    bottom: 0;
+    left: 0; right: 0;
+    height: 60%;
+    z-index: 1;
+    overflow: hidden;
+  }
+
+  .cam-trees svg {
+    width: 100%;
+    height: 100%;
+    opacity: 0.6;
+  }
+
+  /* ─── ALERTS PANEL ─── */
+  .alerts-list {
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 280px;
+    overflow-y: auto;
+  }
+
+  .alert-item {
+    display: flex;
+    gap: 10px;
+    padding: 10px 12px;
+    background: var(--bg-panel);
+    border-radius: var(--radius-sm);
+    border-left: 2px solid var(--border);
+    border-top: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    transition: border-left-color 0.2s;
+  }
+
+  .alert-item.warning { border-left-color: var(--accent-amber); }
+  .alert-item.critical { border-left-color: var(--accent-fire); }
+  .alert-item.info { border-left-color: var(--accent-green); }
+
+  .alert-icon {
+    width: 28px; height: 28px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+
+  .alert-item.warning .alert-icon { background: var(--accent-amber-glow); }
+  .alert-item.critical .alert-icon { background: var(--accent-fire-glow); }
+  .alert-item.info .alert-icon { background: var(--accent-green-glow); }
+
+  .alert-content { flex: 1; min-width: 0; }
+
+  .alert-title {
+    font-family: var(--font-display);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 2px;
+  }
+
+  .alert-desc {
+    font-family: var(--font-body);
+    font-size: 10px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .alert-time {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+    align-self: flex-start;
+    padding-top: 2px;
+  }
+
+  /* ─── GRID ROW 3 ─── */
+  .grid-row-3 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  /* ─── WEATHER STATION ─── */
+  .weather-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    padding: 12px;
+  }
+
+  .weather-cell {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 4px;
+  }
+
+  .weather-icon { font-size: 18px; margin-bottom: 2px; }
+
+  .weather-val {
+    font-family: var(--font-display);
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary);
+    line-height: 1;
+  }
+
+  .weather-unit {
+    font-size: 10px;
+    font-weight: 400;
+    color: var(--text-muted);
+  }
+
+  .weather-label {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--text-muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  /* ─── CHART AREA ─── */
+  .chart-area {
+    padding: 12px;
+    height: 220px;
+    position: relative;
+  }
+
+  .chart-canvas-wrapper {
+    width: 100%;
+    height: 100%;
+    position: relative;
+  }
+
+  /* SVG Chart */
+  .svg-chart {
+    width: 100%;
+    height: 180px;
+    overflow: visible;
+  }
+
+  .chart-grid-line {
+    stroke: var(--border);
+    stroke-width: 1;
+    stroke-dasharray: 4 4;
+  }
+
+  .chart-line-co2 {
+    fill: none;
+    stroke: var(--accent-fire);
+    stroke-width: 2;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+    filter: drop-shadow(0 0 4px rgba(255,87,34,0.4));
+  }
+
+  .chart-line-temp {
+    fill: none;
+    stroke: var(--accent-amber);
+    stroke-width: 2;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+    filter: drop-shadow(0 0 4px rgba(255,179,0,0.4));
+  }
+
+  .chart-line-fwi {
+    fill: none;
+    stroke: var(--accent-green);
+    stroke-width: 2;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+    filter: drop-shadow(0 0 4px rgba(0,230,118,0.4));
+  }
+
+  .chart-area-fill {
+    fill: url(#grad-fire);
+    opacity: 0.12;
+  }
+
+  .chart-dot {
+    fill: var(--accent-fire);
+    filter: drop-shadow(0 0 4px rgba(255,87,34,0.6));
+  }
+
+  /* Legend */
+  .chart-legend {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 8px;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--text-muted);
+  }
+
+  .legend-line {
+    width: 16px;
+    height: 2px;
+    border-radius: 1px;
+  }
+
+  /* ─── MAP PANEL ─── */
+  .map-panel {
+    grid-column: 1 / -1;
+    height: 300px;
+  }
+
+  .map-container {
+    height: calc(100% - 44px);
+    background: #060e08;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .map-svg {
+    width: 100%;
+    height: 100%;
+  }
+
+  /* Forest texture */
+  .forest-bg {
+    fill: url(#forest-pattern);
+  }
+
+  /* Node markers */
+  .node-marker {
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .node-marker:hover .node-ring { r: 18; }
+
+  .node-ring {
+    fill: none;
+    stroke: var(--accent-green);
+    stroke-width: 1.5;
+    opacity: 0.6;
+    animation: node-ping 3s ease-out infinite;
+  }
+
+  @keyframes node-ping {
+    0% { r: 12; opacity: 0.8; }
+    100% { r: 28; opacity: 0; }
+  }
+
+  .node-core {
+    fill: var(--accent-green);
+    filter: drop-shadow(0 0 6px var(--accent-green));
+  }
+
+  /* ─── EMERGENCY PANEL ─── */
+  .emergency-panel {
+    background: rgba(244,67,54,0.04);
+    border: 1px solid rgba(244,67,54,0.15);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+  }
+
+  .emergency-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(244,67,54,0.15);
+    background: rgba(244,67,54,0.06);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .emergency-title {
+    font-family: var(--font-display);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent-fire);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .emergency-body {
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .emergency-btn {
+    width: 100%;
+    padding: 12px;
+    border-radius: var(--radius-sm);
+    border: 1px solid rgba(244,67,54,0.3);
+    background: rgba(244,67,54,0.08);
+    color: var(--accent-fire);
+    font-family: var(--font-display);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
+    letter-spacing: 0.04em;
+  }
+
+  .emergency-btn:hover {
+    background: rgba(244,67,54,0.15);
+    border-color: var(--accent-fire);
+    box-shadow: 0 0 20px rgba(244,67,54,0.15);
+  }
+
+  .emergency-btn.secondary {
+    border-color: rgba(255,179,0,0.3);
+    background: rgba(255,179,0,0.06);
+    color: var(--accent-amber);
+  }
+
+  .emergency-btn.secondary:hover {
+    background: rgba(255,179,0,0.12);
+    border-color: var(--accent-amber);
+    box-shadow: 0 0 20px rgba(255,179,0,0.12);
+  }
+
+  .auth-note {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--text-muted);
+    text-align: center;
+    padding: 4px;
+  }
+
+  /* ─── BOTTOM GRID ─── */
+  .grid-row-4 {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr;
+    gap: 12px;
+  }
+
+  /* ─── SCROLLBAR ─── */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: var(--bg-void); }
+  ::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 2px; }
+
+  /* ─── SECTION DIVIDER ─── */
+  .section-eyebrow {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--text-muted);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .section-eyebrow::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* ─── MINI CHART (sparkline) ─── */
+  .sparkline {
+    width: 60px;
+    height: 24px;
+  }
+
+  /* ─── CO2 GAUGE ─── */
+  .co2-gauge-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 12px;
+  }
+
+  .co2-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .co2-bar-label {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--text-secondary);
+    width: 52px;
+    flex-shrink: 0;
+  }
+
+  .co2-bar-track {
+    flex: 1;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .co2-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 1s ease;
+  }
+
+  .co2-bar-val {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-primary);
+    width: 60px;
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  /* Animated data rows */
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .kpi-card, .panel, .sensor-cell {
+    animation: fadeInUp 0.4s ease both;
+  }
+
+  /* ─── RESPONSIVE ─── */
+  @media (max-width: 1100px) {
+    .hero-row { grid-template-columns: 1fr 1fr; height: auto; }
+    .kpi-strip { grid-template-columns: repeat(3, 1fr); }
+    .grid-row-2 { grid-template-columns: 1fr; }
+    .grid-row-3 { grid-template-columns: 1fr; }
+    .grid-row-4 { grid-template-columns: 1fr; }
+  }
+
+  /* ─── TOOLTIP ─── */
+  .tooltip {
+    position: absolute;
+    background: var(--bg-card);
+    border: 1px solid var(--border-bright);
+    border-radius: var(--radius-sm);
+    padding: 6px 10px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-primary);
+    pointer-events: none;
+    z-index: 200;
+    display: none;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  }
+
+  /* ─── FULLSCREEN MAP ─── */
+  .map-controls {
+    position: absolute;
+    top: 8px; right: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .map-btn {
+    width: 28px; height: 28px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 14px;
+    font-family: var(--font-mono);
+    transition: all 0.2s;
+  }
+
+  .map-btn:hover {
+    background: var(--bg-card-hover);
+    color: var(--accent-green);
+    border-color: var(--accent-green);
+  }
+
+  .map-legend {
+    position: absolute;
+    bottom: 8px; left: 8px;
+    background: rgba(8,14,10,0.85);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 8px 10px;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--text-muted);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .map-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .map-legend-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+  }
+
+  .map-coords {
+    position: absolute;
+    bottom: 8px; right: 8px;
+    background: rgba(8,14,10,0.85);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 4px 8px;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--text-muted);
+  }
+
+  /* Pulse rings on map */
+  .map-pulse {
+    animation: map-pulse-anim 3s ease-out infinite;
+  }
+
+  @keyframes map-pulse-anim {
+    0% { r: 8; opacity: 0.8; }
+    100% { r: 30; opacity: 0; }
+  }
+
+  /* ─── DATA TABLE ─── */
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .data-table th {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--text-muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 8px 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    font-weight: 400;
+  }
+
+  .data-table td {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-secondary);
+    padding: 8px 12px;
+    border-bottom: 1px solid rgba(30,51,38,0.5);
+    vertical-align: middle;
+  }
+
+  .data-table tr:last-child td { border-bottom: none; }
+
+  .data-table tr:hover td {
+    background: rgba(0,230,118,0.02);
+  }
+
+  .td-highlight {
+    color: var(--text-primary);
+    font-weight: 700;
+  }
+
+  .td-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 7px;
+    border-radius: 10px;
+    font-size: 9px;
+    font-weight: 600;
+  }
+
+  .td-badge.normal {
+    background: rgba(0,230,118,0.1);
+    color: var(--accent-green);
+  }
+
+  .td-badge.elevated {
+    background: rgba(255,179,0,0.1);
+    color: var(--accent-amber);
+  }
+
+  .td-badge.high {
+    background: rgba(255,87,34,0.1);
+    color: var(--accent-fire);
+  }
+
+  /* ─── PARTICLE EFFECT ─── */
+  .particles {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    pointer-events: none;
+    z-index: 0;
+    overflow: hidden;
+  }
+
+  .particle {
+    position: absolute;
+    width: 1px; height: 1px;
+    border-radius: 50%;
+    background: var(--accent-green);
+    opacity: 0;
+    animation: float-up var(--dur) var(--delay) ease-in infinite;
+  }
+
+  @keyframes float-up {
+    0% { transform: translateY(100vh) translateX(0); opacity: 0; }
+    10% { opacity: 0.3; }
+    90% { opacity: 0.1; }
+    100% { transform: translateY(-20px) translateX(var(--drift)); opacity: 0; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Subtle particles -->
+<div class="particles" aria-hidden="true">
+  <div class="particle" style="left:5%;--dur:18s;--delay:0s;--drift:20px"></div>
+  <div class="particle" style="left:15%;--dur:22s;--delay:4s;--drift:-15px"></div>
+  <div class="particle" style="left:25%;--dur:19s;--delay:8s;--drift:10px"></div>
+  <div class="particle" style="left:40%;--dur:24s;--delay:2s;--drift:-20px"></div>
+  <div class="particle" style="left:55%;--dur:20s;--delay:6s;--drift:15px"></div>
+  <div class="particle" style="left:70%;--dur:17s;--delay:1s;--drift:-10px"></div>
+  <div class="particle" style="left:85%;--dur:21s;--delay:10s;--drift:25px"></div>
+  <div class="particle" style="left:92%;--dur:23s;--delay:5s;--drift:-18px"></div>
+</div>
+
+<!-- ─── TOPBAR ─── -->
+<header class="topbar">
+  <div class="topbar-brand">
+    <div class="brand-icon">🌲</div>
+    <div class="brand-text">
+      <div class="brand-name">FFDS PRO</div>
+      <div class="brand-sub">v3.2.1 · Taman Negara, Pahang</div>
+    </div>
+  </div>
+  <div class="topbar-station" style="padding-left:16px;">
+    <div class="station-label">Active Station</div>
+    <div class="station-name">TN-01 · Jabatan PERHILITAN × UPM</div>
+  </div>
+  <div class="topbar-ticker">
+    <div class="ticker-inner" id="ticker">
+      <div class="ticker-item"><div class="ticker-dot"></div>NODE-01 · T:28.7°C · RH:43.9% · CO₂:217ppm · H₂O:411mm</div>
+      <div class="ticker-item"><div class="ticker-dot"></div>NODE-02 · T:26.2°C · RH:53.4% · CO₂:531ppm · H₂O:967mm</div>
+      <div class="ticker-item"><div class="ticker-dot amber"></div><span class="ticker-weather">WEATHER · Loading live data…</span></div>
+      <div class="ticker-item"><div class="ticker-dot"></div><span class="ticker-pm">PM10:--µg/m³ · PM2.5:--µg/m³ · Noise:37dB</span></div>
+      <div class="ticker-item"><div class="ticker-dot"></div><span class="ticker-fwi">FWI: -- · RISK: -- · 4 CAMERAS REF</span></div>
+      <div class="ticker-item"><div class="ticker-dot"></div>NODE-01 · T:28.7°C · RH:43.9% · CO₂:217ppm · H₂O:411mm</div>
+      <div class="ticker-item"><div class="ticker-dot"></div>NODE-02 · T:26.2°C · RH:53.4% · CO₂:531ppm · H₂O:967mm</div>
+      <div class="ticker-item"><div class="ticker-dot amber"></div><span class="ticker-weather">WEATHER · Loading live data…</span></div>
+      <div class="ticker-item"><div class="ticker-dot"></div><span class="ticker-pm">PM10:--µg/m³ · PM2.5:--µg/m³ · Noise:37dB</span></div>
+      <div class="ticker-item"><div class="ticker-dot"></div><span class="ticker-fwi">FWI: -- · RISK: -- · 4 CAMERAS REF</span></div>
+    </div>
+  </div>
+  <div class="topbar-controls">
+    <div class="status-pill"><div class="dot"></div>SYSTEM ONLINE</div>
+    <div class="status-pill" id="clockPill">09:29:49</div>
+    <button class="siren-btn" onclick="triggerSiren()">⚠ MANUAL SIREN</button>
+  </div>
+</header>
+
+<!-- ─── NAV TABS ─── -->
+<nav class="nav-tabs">
+  <button class="nav-tab active" onclick="switchTab(this,'overview')">⬡ OVERVIEW</button>
+  <button class="nav-tab" onclick="switchTab(this,'sensors')">◈ SENSORS</button>
+  <button class="nav-tab" onclick="switchTab(this,'cameras')">◉ CAMERAS</button>
+  <button class="nav-tab" onclick="switchTab(this,'analytics')">◈ ANALYTICS</button>
+  <button class="nav-tab" onclick="switchTab(this,'alerts')">🔔 ALERTS <span class="tab-badge">4</span></button>
+  <button class="nav-tab" onclick="switchTab(this,'weather')">☁ WEATHER</button>
+  <button class="nav-tab" onclick="switchTab(this,'map')">⬡ MAP</button>
+  <button class="nav-tab" onclick="switchTab(this,'satellite')">🛰 SATELLITE</button>
+  <button class="nav-tab" onclick="switchTab(this,'logs')">≡ EVENT LOG</button>
+</nav>
+
+<!-- ─── MAIN ─── -->
+<main class="main" id="main-content">
+
+  <!-- ── HERO ROW ── -->
+  <div class="section-eyebrow" id="tab-overview">SITUATIONAL OVERVIEW</div>
+  <div class="hero-row">
+
+    <!-- Fire Risk Ring -->
+    <div class="fire-risk-hero">
+      <div class="risk-ring-container">
+        <svg class="risk-ring-svg" viewBox="0 0 120 120">
+          <defs>
+            <linearGradient id="ring-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#00E676"/>
+              <stop offset="100%" stop-color="#00A854"/>
+            </linearGradient>
+          </defs>
+          <circle class="risk-ring-bg" cx="60" cy="60" r="50"/>
+          <circle class="risk-ring-fill" cx="60" cy="60" r="50" stroke="url(#ring-grad)"/>
+          <!-- Tick marks -->
+          <g transform="translate(60,60)">
+            <line x1="0" y1="-42" x2="0" y2="-48" stroke="#1E3326" stroke-width="1.5" transform="rotate(0)"/>
+            <line x1="0" y1="-42" x2="0" y2="-48" stroke="#1E3326" stroke-width="1.5" transform="rotate(72)"/>
+            <line x1="0" y1="-42" x2="0" y2="-48" stroke="#1E3326" stroke-width="1.5" transform="rotate(144)"/>
+            <line x1="0" y1="-42" x2="0" y2="-48" stroke="#1E3326" stroke-width="1.5" transform="rotate(216)"/>
+            <line x1="0" y1="-42" x2="0" y2="-48" stroke="#1E3326" stroke-width="1.5" transform="rotate(288)"/>
+          </g>
+        </svg>
+        <div class="risk-label-center">
+          <span class="risk-fwi-val" id="fwiVal">--</span>
+          <div class="risk-level-text" id="fwiLevel">--</div>
+        </div>
+      </div>
+      <div class="risk-title">FIRE WEATHER INDEX</div>
+      <div class="risk-subtitle">Canadian FWI System · Auto-calc</div>
+    </div>
+
+    <!-- KPI Strip -->
+    <div class="kpi-strip">
+      <div class="kpi-card">
+        <div class="kpi-header">
+          <div class="kpi-label">ACTIVE NODES</div>
+          <div class="kpi-icon">📡</div>
+        </div>
+        <div class="kpi-value">2<span class="kpi-unit">/2</span></div>
+        <div class="kpi-footer"><span class="kpi-trend">↑</span> All nodes reporting</div>
+      </div>
+      <div class="kpi-card amber" id="kpiTempCard">
+        <div class="kpi-header">
+          <div class="kpi-label">AMBIENT TEMP</div>
+          <div class="kpi-icon">🌡</div>
+        </div>
+        <div class="kpi-value" id="kpiTempVal">--<span class="kpi-unit">°C</span></div>
+        <div class="kpi-footer" id="kpiTempFooter"><span class="kpi-trend">↑</span> Live · Open-Meteo</div>
+      </div>
+      <div class="kpi-card" id="kpiHumCard">
+        <div class="kpi-header">
+          <div class="kpi-label">HUMIDITY</div>
+          <div class="kpi-icon">💧</div>
+        </div>
+        <div class="kpi-value" id="kpiHumVal">--<span class="kpi-unit">%</span></div>
+        <div class="kpi-footer" id="kpiHumFooter"><span class="kpi-trend">↑</span> Live · Open-Meteo</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-header">
+          <div class="kpi-label">AIR QUALITY</div>
+          <div class="kpi-icon">🌬</div>
+        </div>
+        <div class="kpi-value" id="kpiPM10Val">--<span class="kpi-unit">µg</span></div>
+        <div class="kpi-footer" id="kpiPM10Footer"><span class="kpi-trend">↑</span> PM10 · Live</div>
+      </div>
+      <div class="kpi-card fire">
+        <div class="kpi-header">
+          <div class="kpi-label">ACTIVE ALERTS</div>
+          <div class="kpi-icon">🔔</div>
+        </div>
+        <div class="kpi-value" style="color:var(--accent-fire)">4</div>
+        <div class="kpi-footer" style="color:var(--accent-amber)">⚠ Pending review</div>
+      </div>
+    </div>
+
+    <!-- System Node Status -->
+    <div class="system-status-panel">
+      <div class="panel-label">NODE STATUS MATRIX</div>
+      <div class="node-status-row">
+        <div class="node-id">NODE-01</div>
+        <div class="node-metrics">
+          <div class="node-metric">T: <span>28.7°C</span></div>
+          <div class="node-metric">RH: <span>43.9%</span></div>
+          <div class="node-metric">CO₂: <span>217ppm</span></div>
+        </div>
+        <div class="online-badge"><div class="dot"></div>ONLINE</div>
+      </div>
+      <div class="node-status-row">
+        <div class="node-id">NODE-02</div>
+        <div class="node-metrics">
+          <div class="node-metric">T: <span>26.2°C</span></div>
+          <div class="node-metric">RH: <span>53.4%</span></div>
+          <div class="node-metric">CO₂: <span>531ppm</span></div>
+        </div>
+        <div class="online-badge"><div class="dot"></div>ONLINE</div>
+      </div>
+      <div class="node-status-row">
+        <div class="node-id">WX-STN</div>
+        <div class="node-metrics">
+          <div class="node-metric">T: <span>30.2°C</span></div>
+          <div class="node-metric">P: <span>101kPa</span></div>
+          <div class="node-metric">W: <span>1km/h</span></div>
+        </div>
+        <div class="online-badge"><div class="dot"></div>ONLINE</div>
+      </div>
+      <div class="node-status-row">
+        <div class="node-id">CO₂-SEN</div>
+        <div class="node-metrics">
+          <div class="node-metric">Last: <span>01:00</span></div>
+          <div class="node-metric">Val: <span>1,720ppm</span></div>
+        </div>
+        <div class="online-badge offline"><div class="dot"></div>OFFLINE</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── ROW 2: Sensors + Cameras + Alerts ── -->
+  <div class="section-eyebrow" style="margin-top:4px">SENSOR TELEMETRY & SURVEILLANCE</div>
+  <div class="grid-row-2">
+
+    <!-- Ground Sensors -->
+    <div class="panel" id="tab-sensors">
+      <div class="panel-header">
+        <div class="panel-title"><div class="panel-title-icon">📡</div>GROUND SENSOR READINGS</div>
+        <div style="display:flex;gap:6px">
+          <div class="live-badge"><div class="dot"></div>NODE-01</div>
+          <div class="live-badge"><div class="dot"></div>NODE-02</div>
+        </div>
+      </div>
+
+      <!-- Node 01 -->
+      <div style="padding:10px 12px 4px;font-family:var(--font-mono);font-size:9px;color:var(--text-muted);letter-spacing:.12em;text-transform:uppercase;display:flex;align-items:center;gap:8px;">
+        NODE-01 · SENSOR ARRAY
+        <div style="flex:1;height:1px;background:var(--border)"></div>
+        <div style="color:var(--accent-green)">LIVE</div>
+      </div>
+      <div class="sensor-grid">
+        <div class="sensor-cell">
+          <div class="sensor-cell-label">🌡 Ground Temp</div>
+          <div class="sensor-cell-value">28.7<span class="sensor-cell-unit">°C</span></div>
+          <div class="sensor-bar"><div class="sensor-bar-fill" style="width:58%"></div></div>
+        </div>
+        <div class="sensor-cell">
+          <div class="sensor-cell-label">💧 Ground Humidity</div>
+          <div class="sensor-cell-value">43.9<span class="sensor-cell-unit">%</span></div>
+          <div class="sensor-bar"><div class="sensor-bar-fill amber" style="width:44%"></div></div>
+        </div>
+        <div class="sensor-cell">
+          <div class="sensor-cell-label">〰 Water Level</div>
+          <div class="sensor-cell-value">411.2<span class="sensor-cell-unit">mm</span></div>
+          <div class="sensor-bar"><div class="sensor-bar-fill" style="width:41%"></div></div>
+        </div>
+        <div class="sensor-cell">
+          <div class="sensor-cell-label">☁ CO₂ Atm.</div>
+          <div class="sensor-cell-value">217.5<span class="sensor-cell-unit">ppm</span></div>
+          <div class="sensor-bar"><div class="sensor-bar-fill" style="width:22%"></div></div>
+        </div>
+      </div>
+
+      <!-- Node 02 -->
+      <div style="padding:4px 12px 4px;font-family:var(--font-mono);font-size:9px;color:var(--text-muted);letter-spacing:.12em;text-transform:uppercase;display:flex;align-items:center;gap:8px;">
+        NODE-02 · SENSOR ARRAY
+        <div style="flex:1;height:1px;background:var(--border)"></div>
+        <div style="color:var(--accent-green)">LIVE</div>
+      </div>
+      <div class="sensor-grid">
+        <div class="sensor-cell">
+          <div class="sensor-cell-label">🌡 Ground Temp</div>
+          <div class="sensor-cell-value">26.2<span class="sensor-cell-unit">°C</span></div>
+          <div class="sensor-bar"><div class="sensor-bar-fill" style="width:52%"></div></div>
+        </div>
+        <div class="sensor-cell">
+          <div class="sensor-cell-label">💧 Ground Humidity</div>
+          <div class="sensor-cell-value">53.4<span class="sensor-cell-unit">%</span></div>
+          <div class="sensor-bar"><div class="sensor-bar-fill" style="width:53%"></div></div>
+        </div>
+        <div class="sensor-cell">
+          <div class="sensor-cell-label">〰 Water Level</div>
+          <div class="sensor-cell-value">967.8<span class="sensor-cell-unit">mm</span></div>
+          <div class="sensor-bar"><div class="sensor-bar-fill" style="width:97%"></div></div>
+        </div>
+        <div class="sensor-cell">
+          <div class="sensor-cell-label">☁ CO₂ Atm.</div>
+          <div class="sensor-cell-value">531.7<span class="sensor-cell-unit">ppm</span></div>
+          <div class="sensor-bar"><div class="sensor-bar-fill amber" style="width:53%"></div></div>
+        </div>
+      </div>
+
+      <!-- CO2 comparative bars -->
+      <div style="padding:0 12px 12px;">
+        <div style="font-family:var(--font-mono);font-size:9px;color:var(--text-muted);letter-spacing:.12em;text-transform:uppercase;margin-bottom:8px;padding-top:8px;border-top:1px solid var(--border)">ATMOSPHERIC CO₂ COMPARISON</div>
+        <div class="co2-gauge-row" style="padding:0;gap:6px">
+          <div class="co2-bar-row">
+            <div class="co2-bar-label">NODE-01</div>
+            <div class="co2-bar-track"><div class="co2-bar-fill" style="width:12%;background:var(--accent-green)"></div></div>
+            <div class="co2-bar-val">217.5 ppm</div>
+          </div>
+          <div class="co2-bar-row">
+            <div class="co2-bar-label">NODE-02</div>
+            <div class="co2-bar-track"><div class="co2-bar-fill" style="width:29%;background:var(--accent-amber)"></div></div>
+            <div class="co2-bar-val">531.7 ppm</div>
+          </div>
+          <div class="co2-bar-row">
+            <div class="co2-bar-label">Ambient Atm.</div>
+            <div class="co2-bar-track"><div class="co2-bar-fill" style="width:22%;background:var(--accent-cyan)"></div></div>
+            <div class="co2-bar-val">420.0 ppm</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cameras -->
+    <div class="panel" id="tab-cameras">
+      <div class="panel-header">
+        <div class="panel-title"><div class="panel-title-icon">📷</div>SURVEILLANCE — 4 CHANNELS</div>
+        <div class="live-badge" style="background:rgba(255,179,0,0.1);border-color:rgba(255,179,0,0.25)"><div class="dot" style="background:var(--accent-amber);box-shadow:0 0 6px var(--accent-amber)"></div>REFERENCE FEED</div>
+      </div>
+      <div class="camera-grid">
+        <!-- CH01 -->
+        <div class="camera-feed">
+          <div class="camera-feed-inner">
+            <div class="cam-trees">
+              <svg viewBox="0 0 200 100" preserveAspectRatio="none">
+                <polygon points="20,100 35,60 50,100" fill="#0d2b1a"/>
+                <polygon points="40,100 60,40 80,100" fill="#0a2215"/>
+                <polygon points="70,100 90,55 110,100" fill="#0d2b1a"/>
+                <polygon points="100,100 120,35 140,100" fill="#0a2215"/>
+                <polygon points="130,100 148,50 166,100" fill="#0d2b1a"/>
+                <polygon points="155,100 170,65 185,100" fill="#0a2215"/>
+              </svg>
+            </div>
+            <div class="cam-overlay-top">
+              <div class="cam-id">CH-01 · UPM-62_1</div>
+              <div class="cam-live" style="color:var(--accent-amber)"><div class="cam-live-dot" style="background:var(--accent-amber);box-shadow:0 0 6px var(--accent-amber)"></div>REF</div>
+            </div>
+            <div class="cam-overlay-bottom">
+              <div class="cam-timestamp" id="cam1time">04:53:18</div>
+              <div class="cam-temp-badge">28.7°C</div>
+            </div>
+          </div>
+        </div>
+        <!-- CH02 -->
+        <div class="camera-feed">
+          <div class="camera-feed-inner" style="background:linear-gradient(135deg,#08160a,#040c06)">
+            <div class="cam-trees">
+              <svg viewBox="0 0 200 100" preserveAspectRatio="none">
+                <polygon points="10,100 28,50 46,100" fill="#0a2215"/>
+                <polygon points="35,100 55,30 75,100" fill="#0d2b1a"/>
+                <polygon points="65,100 85,55 105,100" fill="#0a2215"/>
+                <polygon points="90,100 115,40 140,100" fill="#0d2b1a"/>
+                <polygon points="125,100 145,60 165,100" fill="#0a2215"/>
+                <polygon points="150,100 168,45 186,100" fill="#0d2b1a"/>
+              </svg>
+            </div>
+            <div class="cam-overlay-top">
+              <div class="cam-id">CH-02 · UPM-63_1</div>
+              <div class="cam-live" style="color:var(--accent-amber)"><div class="cam-live-dot" style="background:var(--accent-amber);box-shadow:0 0 6px var(--accent-amber)"></div>REF</div>
+            </div>
+            <div class="cam-overlay-bottom">
+              <div class="cam-timestamp">04:52:47</div>
+              <div class="cam-temp-badge">26.2°C</div>
+            </div>
+          </div>
+        </div>
+        <!-- CH03 -->
+        <div class="camera-feed">
+          <div class="camera-feed-inner" style="background:linear-gradient(135deg,#0a180c,#060e08)">
+            <div class="cam-trees">
+              <svg viewBox="0 0 200 100" preserveAspectRatio="none">
+                <polygon points="5,100 22,58 40,100" fill="#0d2b1a"/>
+                <polygon points="30,100 52,38 74,100" fill="#0a2215"/>
+                <polygon points="60,100 80,62 100,100" fill="#0d2b1a"/>
+                <polygon points="88,100 110,32 132,100" fill="#0a2215"/>
+                <polygon points="120,100 140,55 160,100" fill="#0d2b1a"/>
+                <polygon points="148,100 165,48 182,100" fill="#0a2215"/>
+              </svg>
+            </div>
+            <div class="cam-overlay-top">
+              <div class="cam-id">CH-03 · UPM-64_1</div>
+              <div class="cam-live" style="color:var(--accent-amber)"><div class="cam-live-dot" style="background:var(--accent-amber);box-shadow:0 0 6px var(--accent-amber)"></div>REF</div>
+            </div>
+            <div class="cam-overlay-bottom">
+              <div class="cam-timestamp">04:53:01</div>
+              <div class="cam-temp-badge">27.5°C</div>
+            </div>
+          </div>
+        </div>
+        <!-- CH04 -->
+        <div class="camera-feed">
+          <div class="camera-feed-inner" style="background:linear-gradient(135deg,#09150b,#050d07)">
+            <div class="cam-trees">
+              <svg viewBox="0 0 200 100" preserveAspectRatio="none">
+                <polygon points="15,100 32,52 50,100" fill="#0a2215"/>
+                <polygon points="42,100 62,42 82,100" fill="#0d2b1a"/>
+                <polygon points="72,100 92,58 112,100" fill="#0a2215"/>
+                <polygon points="100,100 122,36 144,100" fill="#0d2b1a"/>
+                <polygon points="132,100 150,62 168,100" fill="#0a2215"/>
+                <polygon points="158,100 175,46 192,100" fill="#0d2b1a"/>
+              </svg>
+            </div>
+            <div class="cam-overlay-top">
+              <div class="cam-id">CH-04 · UPM-65_1</div>
+              <div class="cam-live" style="color:var(--accent-amber)"><div class="cam-live-dot" style="background:var(--accent-amber);box-shadow:0 0 6px var(--accent-amber)"></div>REF</div>
+            </div>
+            <div class="cam-overlay-bottom">
+              <div class="cam-timestamp">04:52:55</div>
+              <div class="cam-temp-badge">29.1°C</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- AI Detection Status -->
+      <div style="margin:0 8px 8px;padding:10px 12px;background:var(--bg-panel);border:1px solid var(--border);border-radius:var(--radius-sm);">
+        <div style="font-family:var(--font-mono);font-size:9px;color:var(--text-muted);letter-spacing:.12em;text-transform:uppercase;margin-bottom:8px;">AI VISION · FLAME/SMOKE DETECTION</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;">
+          <div style="text-align:center">
+            <div style="font-family:var(--font-mono);font-size:9px;color:var(--text-muted)">CH-01</div>
+            <div style="font-family:var(--font-display);font-size:11px;font-weight:700;color:var(--accent-green)">CLEAR</div>
+            <div style="font-family:var(--font-mono);font-size:9px;color:var(--text-muted)">conf: 99.2%</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-family:var(--font-mono);font-size:9px;color:var(--text-muted)">CH-02</div>
+            <div style="font-family:var(--font-display);font-size:11px;font-weight:700;color:var(--accent-green)">CLEAR</div>
+            <div style="font-family:var(--font-mono);font-size:9px;color:var(--text-muted)">conf: 98.7%</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-family:var(--font-mono);font-size:9px;color:var(--text-muted)">CH-03</div>
+            <div style="font-family:var(--font-display);font-size:11px;font-weight:700;color:var(--accent-green)">CLEAR</div>
+            <div style="font-family:var(--font-mono);font-size:9px;color:var(--text-muted)">conf: 97.4%</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-family:var(--font-mono);font-size:9px;color:var(--text-muted)">CH-04</div>
+            <div style="font-family:var(--font-display);font-size:11px;font-weight:700;color:var(--accent-green)">CLEAR</div>
+            <div style="font-family:var(--font-mono);font-size:9px;color:var(--text-muted)">conf: 99.1%</div>
+          </div>
+        </div>
+      </div>
+      <div style="margin:0 8px 8px;padding:8px 10px;background:rgba(255,179,0,0.04);border:1px solid rgba(255,179,0,0.12);border-radius:var(--radius-sm);font-family:var(--font-mono);font-size:9px;color:var(--text-muted);line-height:1.5;">
+        ⚠ Reference imagery — no public live camera network exists inside Taman Negara's forest interior. Panels render live once ranger-post IP cameras (CH-01…CH-04) are installed and streamed to this dashboard.
+      </div>
+    </div>
+
+    <!-- Right: FWI + Alerts + Emergency -->
+    <div style="display:flex;flex-direction:column;gap:12px;">
+
+      <!-- FWI + Alerts -->
+      <div class="panel" id="tab-alerts" style="flex:1">
+        <div class="panel-header">
+          <div class="panel-title"><div class="panel-title-icon">📊</div>FWI TREND · 7 DAYS</div>
+        </div>
+        <div style="padding:12px">
+          <div class="chart-legend">
+            <div class="legend-item"><div class="legend-line" style="background:var(--accent-green)"></div>FWI Score</div>
+          </div>
+          <svg class="svg-chart" viewBox="0 0 340 100" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="grad-fwi" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#00E676" stop-opacity="0.3"/>
+                <stop offset="100%" stop-color="#00E676" stop-opacity="0"/>
+              </linearGradient>
+            </defs>
+            <!-- Grid lines -->
+            <line x1="0" y1="20" x2="340" y2="20" class="chart-grid-line"/>
+            <line x1="0" y1="50" x2="340" y2="50" class="chart-grid-line"/>
+            <line x1="0" y1="80" x2="340" y2="80" class="chart-grid-line"/>
+            <!-- FWI line (near 0 due to sensor issue) -->
+            <polyline class="chart-line-fwi" points="10,95 60,93 110,94 160,92 210,95 260,93 310,94"/>
+            <!-- Date labels -->
+            <text x="10" y="98" font-family="Space Mono" font-size="6" fill="#3D5C44">23</text>
+            <text x="60" y="98" font-family="Space Mono" font-size="6" fill="#3D5C44">24</text>
+            <text x="110" y="98" font-family="Space Mono" font-size="6" fill="#3D5C44">25</text>
+            <text x="160" y="98" font-family="Space Mono" font-size="6" fill="#3D5C44">26</text>
+            <text x="210" y="98" font-family="Space Mono" font-size="6" fill="#3D5C44">27</text>
+            <text x="260" y="98" font-family="Space Mono" font-size="6" fill="#3D5C44">28</text>
+            <text x="310" y="98" font-family="Space Mono" font-size="6" fill="#3D5C44">29</text>
+          </svg>
+          <div style="font-family:var(--font-mono);font-size:9px;color:var(--accent-amber);padding:6px;background:rgba(255,179,0,0.05);border:1px solid rgba(255,179,0,0.1);border-radius:var(--radius-sm);margin-top:4px">
+            ⚠ FWI near-zero: Weather station humidity = 100%. Verify sensor calibration.
+          </div>
+        </div>
+      </div>
+
+      <!-- Alerts -->
+      <div class="panel" style="flex:1">
+        <div class="panel-header">
+          <div class="panel-title"><div class="panel-title-icon">🔔</div>RECENT ALERTS</div>
+          <div style="font-family:var(--font-mono);font-size:10px;color:var(--accent-fire);">4 active</div>
+        </div>
+        <div class="alerts-list">
+          <div class="alert-item warning">
+            <div class="alert-icon">〰</div>
+            <div class="alert-content">
+              <div class="alert-title">Low Water Level: 0</div>
+              <div class="alert-desc">Node 2 · Sensor reading below threshold</div>
+            </div>
+            <div class="alert-time">09:29:57</div>
+          </div>
+          <div class="alert-item warning">
+            <div class="alert-icon">💧</div>
+            <div class="alert-content">
+              <div class="alert-title">Low Humidity: 0%</div>
+              <div class="alert-desc">Node 2 · Possible sensor fault</div>
+            </div>
+            <div class="alert-time">09:29:57</div>
+          </div>
+          <div class="alert-item warning">
+            <div class="alert-icon">〰</div>
+            <div class="alert-content">
+              <div class="alert-title">Low Water Level: 0</div>
+              <div class="alert-desc">Node 1 · Sensor reading below threshold</div>
+            </div>
+            <div class="alert-time">09:29:57</div>
+          </div>
+          <div class="alert-item warning">
+            <div class="alert-icon">💧</div>
+            <div class="alert-content">
+              <div class="alert-title">Low Humidity: 0%</div>
+              <div class="alert-desc">Node 1 · Possible sensor fault</div>
+            </div>
+            <div class="alert-time">09:29:57</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Emergency -->
+      <div class="emergency-panel">
+        <div class="emergency-header">
+          <div class="emergency-title">⚠ EMERGENCY CONTROL</div>
+        </div>
+        <div class="emergency-body">
+          <button class="emergency-btn" onclick="triggerSiren()">🚨 ACTIVATE MANUAL SIREN</button>
+          <button class="emergency-btn secondary">📞 ALERT DISPATCH CENTRE</button>
+          <div class="auth-note">Requires operator authorisation · Actions are logged</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── ROW 3: Weather + CO₂ Trends ── -->
+  <div class="section-eyebrow" id="tab-weather" style="margin-top:4px">WEATHER STATION & ENVIRONMENTAL TRENDS</div>
+  <div class="grid-row-3">
+
+    <!-- Weather Station -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title"><div class="panel-title-icon">☁</div>WEATHER STATION · TN-01</div>
+        <div class="live-badge" id="wxLiveBadge"><div class="dot"></div>LIVE</div>
+      </div>
+      <div class="weather-grid">
+        <div class="weather-cell">
+          <div class="weather-icon">🌡</div>
+          <div class="weather-val" id="wxTemp">--<span class="weather-unit">°C</span></div>
+          <div class="weather-label">Air Temp</div>
+        </div>
+        <div class="weather-cell">
+          <div class="weather-icon">💧</div>
+          <div class="weather-val" id="wxHum">--<span class="weather-unit">%</span></div>
+          <div class="weather-label">Air Humidity</div>
+        </div>
+        <div class="weather-cell">
+          <div class="weather-icon">⬇</div>
+          <div class="weather-val" id="wxPressure">--<span class="weather-unit">kPa</span></div>
+          <div class="weather-label">Pressure</div>
+        </div>
+        <div class="weather-cell">
+          <div class="weather-icon">💨</div>
+          <div class="weather-val" id="wxWind">--<span class="weather-unit">km/h</span></div>
+          <div class="weather-label" id="wxWindLabel">Wind</div>
+        </div>
+        <div class="weather-cell">
+          <div class="weather-icon">☀</div>
+          <div class="weather-val" id="wxCloud">--<span class="weather-unit">%</span></div>
+          <div class="weather-label">Cloud Cover</div>
+        </div>
+        <div class="weather-cell">
+          <div class="weather-icon">🌧</div>
+          <div class="weather-val" id="wxRain">--<span class="weather-unit">mm</span></div>
+          <div class="weather-label">Rainfall (1h)</div>
+        </div>
+        <div class="weather-cell">
+          <div class="weather-icon">🌫</div>
+          <div class="weather-val" id="wxPM10">--<span class="weather-unit">µg/m³</span></div>
+          <div class="weather-label">PM10 (live)</div>
+        </div>
+        <div class="weather-cell">
+          <div class="weather-icon">🌫</div>
+          <div class="weather-val" id="wxPM25">--<span class="weather-unit">µg/m³</span></div>
+          <div class="weather-label">PM2.5 (live)</div>
+        </div>
+        <div class="weather-cell" style="grid-column:1/-1">
+          <div style="display:flex;align-items:center;justify-content:space-around;width:100%">
+            <div style="text-align:center">
+              <div class="weather-icon">🔊</div>
+              <div class="weather-val">37<span class="weather-unit">dB</span></div>
+              <div class="weather-label">Noise Level</div>
+            </div>
+            <div style="width:1px;height:40px;background:var(--border)"></div>
+            <div style="text-align:center">
+              <div class="weather-icon">📍</div>
+              <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-primary)">4.3927° N</div>
+              <div style="font-family:var(--font-mono);font-size:11px;color:var(--text-primary)">102.3854° E</div>
+              <div class="weather-label">GPS Coords</div>
+            </div>
+            <div style="width:1px;height:40px;background:var(--border)"></div>
+            <div style="text-align:center">
+              <div class="weather-icon">📶</div>
+              <div class="weather-val" style="font-size:14px">-72<span class="weather-unit">dBm</span></div>
+              <div class="weather-label">Signal Strength</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CO₂ Trend Chart -->
+    <div class="panel" id="tab-analytics">
+      <div class="panel-header">
+        <div class="panel-title"><div class="panel-title-icon">📈</div>CO₂ & SOIL TEMP · 24H TREND</div>
+      </div>
+      <div class="chart-area" style="height:auto;padding:12px">
+        <div class="chart-legend">
+          <div class="legend-item"><div class="legend-line" style="background:var(--accent-fire)"></div>CO₂ N01 (ppm)</div>
+          <div class="legend-item"><div class="legend-line" style="background:var(--accent-cyan)"></div>CO₂ N02 (ppm)</div>
+          <div class="legend-item"><div class="legend-line" style="background:var(--accent-amber)"></div>Soil Temp (°C)</div>
+        </div>
+        <svg class="svg-chart" viewBox="0 0 400 130" style="height:200px">
+          <defs>
+            <linearGradient id="grad-fire2" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#FF5722" stop-opacity="0.3"/>
+              <stop offset="100%" stop-color="#FF5722" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          <!-- Grid -->
+          <line x1="40" y1="10" x2="400" y2="10" class="chart-grid-line"/>
+          <line x1="40" y1="40" x2="400" y2="40" class="chart-grid-line"/>
+          <line x1="40" y1="70" x2="400" y2="70" class="chart-grid-line"/>
+          <line x1="40" y1="100" x2="400" y2="100" class="chart-grid-line"/>
+          <!-- Y labels -->
+          <text x="35" y="13" font-family="Space Mono" font-size="7" fill="#3D5C44" text-anchor="end">1800</text>
+          <text x="35" y="43" font-family="Space Mono" font-size="7" fill="#3D5C44" text-anchor="end">1200</text>
+          <text x="35" y="73" font-family="Space Mono" font-size="7" fill="#3D5C44" text-anchor="end">600</text>
+          <text x="35" y="103" font-family="Space Mono" font-size="7" fill="#3D5C44" text-anchor="end">0</text>
+          <!-- CO2 Node 01 line -->
+          <polyline class="chart-line-co2" points="40,98 70,95 100,88 130,70 160,50 190,30 220,18 250,22 280,45 310,68 340,80 370,90 400,95"/>
+          <!-- CO2 Node 02 line -->
+          <polyline points="40,96 70,90 100,80 130,58 160,35 190,18 220,12 250,15 280,35 310,55 340,70 370,85 400,92" fill="none" stroke="#00BCD4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="filter:drop-shadow(0 0 4px rgba(0,188,212,0.4))"/>
+          <!-- Soil temp (secondary axis) -->
+          <polyline class="chart-line-temp" points="40,80 70,78 100,72 130,65 160,58 190,55 220,54 250,56 280,62 310,70 340,76 370,79 400,80"/>
+          <!-- Time labels -->
+          <text x="40" y="118" font-family="Space Mono" font-size="6" fill="#3D5C44" text-anchor="middle">09:00</text>
+          <text x="100" y="118" font-family="Space Mono" font-size="6" fill="#3D5C44" text-anchor="middle">11:00</text>
+          <text x="160" y="118" font-family="Space Mono" font-size="6" fill="#3D5C44" text-anchor="middle">13:00</text>
+          <text x="220" y="118" font-family="Space Mono" font-size="6" fill="#3D5C44" text-anchor="middle">17:00</text>
+          <text x="280" y="118" font-family="Space Mono" font-size="6" fill="#3D5C44" text-anchor="middle">21:00</text>
+          <text x="340" y="118" font-family="Space Mono" font-size="6" fill="#3D5C44" text-anchor="middle">03:00</text>
+          <text x="400" y="118" font-family="Space Mono" font-size="6" fill="#3D5C44" text-anchor="middle">09:00</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── ROW: Satellite Fire Detection (NASA GIBS/FIRMS) ── -->
+  <div class="section-eyebrow" id="tab-satellite" style="margin-top:4px">SATELLITE FIRE DETECTION · NASA FIRMS / GIBS</div>
+  <div class="panel" style="margin-bottom:12px">
+    <div class="panel-header">
+      <div class="panel-title"><div class="panel-title-icon">🛰</div>THERMAL ANOMALY OVERLAY — TAMAN NEGARA REGION</div>
+      <div class="live-badge" id="satBadge"><div class="dot"></div>LIVE · NASA GIBS</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 260px;gap:0">
+      <div style="position:relative;background:#04080a;aspect-ratio:1/1;overflow:hidden;border-right:1px solid var(--border)">
+        <img id="satBaseImg" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0.9" alt="Satellite true-color base layer">
+        <img id="satFireImg" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover" alt="Fire/thermal anomaly detections overlay">
+        <div style="position:absolute;top:8px;left:8px;background:rgba(8,14,10,0.85);border:1px solid var(--border);border-radius:var(--radius-sm);padding:4px 8px;font-family:var(--font-mono);font-size:9px;color:var(--text-muted)" id="satDateLabel">Loading imagery…</div>
+        <div style="position:absolute;bottom:8px;left:8px;background:rgba(8,14,10,0.85);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 9px;font-family:var(--font-mono);font-size:8px;color:var(--text-muted);line-height:1.6">
+          🔴 High confidence &nbsp;🟠 Nominal &nbsp;🟡 Low confidence
+        </div>
+      </div>
+      <div style="padding:12px;display:flex;flex-direction:column;gap:10px">
+        <div style="font-family:var(--font-mono);font-size:9px;color:var(--text-muted);letter-spacing:.1em;text-transform:uppercase">Source</div>
+        <div style="font-family:var(--font-display);font-size:11px;color:var(--text-primary);line-height:1.5">
+          MODIS Combined Thermal Anomalies<br>+ True Color base layer<br>NASA GIBS (keyless WMS)
+        </div>
+        <div style="border-top:1px solid var(--border);padding-top:10px;font-family:var(--font-mono);font-size:9px;color:var(--text-muted);line-height:1.7">
+          Satellite passes, not continuous video.<br>
+          MODIS: ~1–2 day processing latency.<br>
+          VIIRS: ~12 hour latency, finer 375m resolution.<br>
+          No dots visible = no thermal anomaly detected on this pass.
+        </div>
+        <a id="satWorldviewLink" href="#" target="_blank" rel="noopener" style="margin-top:auto;display:block;text-align:center;padding:8px;border:1px solid rgba(0,230,118,0.25);border-radius:var(--radius-sm);color:var(--accent-green);font-family:var(--font-display);font-size:10px;font-weight:600;text-decoration:none;letter-spacing:.04em">
+          OPEN IN NASA WORLDVIEW ↗
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── ROW 4: Map + Water Level + Data Table ── -->
+  <div class="section-eyebrow" style="margin-top:4px">SPATIAL MONITORING & SENSOR LOG</div>
+  <div class="grid-row-4">
+
+    <!-- Map -->
+    <div class="panel map-panel" id="tab-map" style="height:320px">
+      <div class="panel-header">
+        <div class="panel-title"><div class="panel-title-icon">🗺</div>FOREST MONITORING NETWORK · TAMAN NEGARA, PAHANG</div>
+        <div class="live-badge"><div class="dot"></div>LIVE · 2 NODES</div>
+      </div>
+      <div class="map-container">
+        <svg class="map-svg" viewBox="0 0 800 260">
+          <defs>
+            <pattern id="forest-pattern" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
+              <rect width="20" height="20" fill="#050e07"/>
+              <circle cx="5" cy="5" r="3" fill="#081408" opacity="0.8"/>
+              <circle cx="15" cy="15" r="4" fill="#071206" opacity="0.7"/>
+              <circle cx="10" cy="10" r="2" fill="#091509" opacity="0.6"/>
+            </pattern>
+            <radialGradient id="node-glow-green" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#00E676" stop-opacity="0.3"/>
+              <stop offset="100%" stop-color="#00E676" stop-opacity="0"/>
+            </radialGradient>
+          </defs>
+
+          <!-- Forest base -->
+          <rect width="800" height="260" fill="url(#forest-pattern)"/>
+
+          <!-- Forest density patches -->
+          <ellipse cx="200" cy="130" rx="180" ry="100" fill="#061008" opacity="0.6"/>
+          <ellipse cx="550" cy="100" rx="200" ry="90" fill="#071209" opacity="0.5"/>
+          <ellipse cx="400" cy="200" rx="250" ry="60" fill="#061008" opacity="0.4"/>
+
+          <!-- Road/path -->
+          <path d="M 0,180 Q 200,170 400,165 Q 600,160 800,155" fill="none" stroke="#1a2e1c" stroke-width="8" stroke-dasharray="none"/>
+          <path d="M 0,180 Q 200,170 400,165 Q 600,160 800,155" fill="none" stroke="#0f1e11" stroke-width="4"/>
+
+          <!-- Grid overlay -->
+          <g opacity="0.08">
+            <line x1="0" y1="65" x2="800" y2="65" stroke="#00E676" stroke-width="0.5" stroke-dasharray="4 4"/>
+            <line x1="0" y1="130" x2="800" y2="130" stroke="#00E676" stroke-width="0.5" stroke-dasharray="4 4"/>
+            <line x1="0" y1="195" x2="800" y2="195" stroke="#00E676" stroke-width="0.5" stroke-dasharray="4 4"/>
+            <line x1="200" y1="0" x2="200" y2="260" stroke="#00E676" stroke-width="0.5" stroke-dasharray="4 4"/>
+            <line x1="400" y1="0" x2="400" y2="260" stroke="#00E676" stroke-width="0.5" stroke-dasharray="4 4"/>
+            <line x1="600" y1="0" x2="600" y2="260" stroke="#00E676" stroke-width="0.5" stroke-dasharray="4 4"/>
+          </g>
+
+          <!-- Coverage circles -->
+          <circle cx="250" cy="190" r="80" fill="none" stroke="#00E676" stroke-width="0.5" stroke-dasharray="6 3" opacity="0.2"/>
+          <circle cx="530" cy="90" r="90" fill="none" stroke="#00E676" stroke-width="0.5" stroke-dasharray="6 3" opacity="0.2"/>
+
+          <!-- Glows -->
+          <circle cx="250" cy="190" r="40" fill="url(#node-glow-green)"/>
+          <circle cx="530" cy="90" r="40" fill="url(#node-glow-green)"/>
+
+          <!-- NODE-01 ping rings -->
+          <circle cx="250" cy="190" r="12" fill="none" stroke="#00E676" stroke-width="1" opacity="0.6" class="map-pulse"/>
+          <circle cx="250" cy="190" r="12" fill="none" stroke="#00E676" stroke-width="1" opacity="0.4" class="map-pulse" style="animation-delay:1s"/>
+
+          <!-- NODE-01 core -->
+          <circle cx="250" cy="190" r="8" fill="#001A0A" stroke="#00E676" stroke-width="1.5"/>
+          <circle cx="250" cy="190" r="4" fill="#00E676" style="filter:drop-shadow(0 0 6px #00E676)"/>
+
+          <!-- NODE-01 label -->
+          <rect x="258" y="178" width="64" height="24" rx="3" fill="rgba(0,0,0,0.7)" stroke="#1E3326" stroke-width="0.5"/>
+          <text x="290" y="189" font-family="Space Mono" font-size="7" fill="#00E676" text-anchor="middle" font-weight="700">NODE-01</text>
+          <text x="290" y="198" font-family="Space Mono" font-size="6" fill="#4A6B52" text-anchor="middle">28.7°C · 43.9%</text>
+
+          <!-- NODE-02 ping rings -->
+          <circle cx="530" cy="90" r="12" fill="none" stroke="#00E676" stroke-width="1" opacity="0.6" class="map-pulse" style="animation-delay:0.5s"/>
+          <circle cx="530" cy="90" r="12" fill="none" stroke="#00E676" stroke-width="1" opacity="0.4" class="map-pulse" style="animation-delay:1.5s"/>
+
+          <!-- NODE-02 core -->
+          <circle cx="530" cy="90" r="8" fill="#001A0A" stroke="#00E676" stroke-width="1.5"/>
+          <circle cx="530" cy="90" r="4" fill="#00E676" style="filter:drop-shadow(0 0 6px #00E676)"/>
+
+          <!-- NODE-02 label -->
+          <rect x="538" y="78" width="64" height="24" rx="3" fill="rgba(0,0,0,0.7)" stroke="#1E3326" stroke-width="0.5"/>
+          <text x="570" y="89" font-family="Space Mono" font-size="7" fill="#00E676" text-anchor="middle" font-weight="700">NODE-02</text>
+          <text x="570" y="98" font-family="Space Mono" font-size="6" fill="#4A6B52" text-anchor="middle">26.2°C · 53.4%</text>
+
+          <!-- Camera icons -->
+          <text x="180" y="145" font-size="12" fill="#00BCD4" opacity="0.7">📷</text>
+          <text x="280" y="130" font-size="12" fill="#00BCD4" opacity="0.7">📷</text>
+          <text x="465" y="145" font-size="12" fill="#00BCD4" opacity="0.7">📷</text>
+          <text x="560" y="140" font-size="12" fill="#00BCD4" opacity="0.7">📷</text>
+
+          <!-- Scale bar -->
+          <line x1="620" y1="240" x2="720" y2="240" stroke="#2A4A34" stroke-width="1.5"/>
+          <line x1="620" y1="235" x2="620" y2="245" stroke="#2A4A34" stroke-width="1.5"/>
+          <line x1="720" y1="235" x2="720" y2="245" stroke="#2A4A34" stroke-width="1.5"/>
+          <text x="670" y="253" font-family="Space Mono" font-size="7" fill="#3D5C44" text-anchor="middle">500 m</text>
+
+          <!-- North arrow -->
+          <text x="760" y="35" font-family="Space Mono" font-size="8" fill="#3D5C44" text-anchor="middle">N</text>
+          <line x1="760" y1="38" x2="760" y2="52" stroke="#2A4A34" stroke-width="1.5"/>
+          <polygon points="756,42 760,38 764,42" fill="#00E676" opacity="0.6"/>
+        </svg>
+
+        <!-- Map controls -->
+        <div class="map-controls">
+          <div class="map-btn">+</div>
+          <div class="map-btn">−</div>
+          <div class="map-btn" style="font-size:10px">⊡</div>
+        </div>
+
+        <!-- Map legend -->
+        <div class="map-legend">
+          <div class="map-legend-item"><div class="map-legend-dot" style="background:var(--accent-green)"></div>Sensor Node</div>
+          <div class="map-legend-item"><div class="map-legend-dot" style="background:var(--accent-cyan)"></div>Camera</div>
+          <div class="map-legend-item"><div class="map-legend-dot" style="background:var(--border-bright);border-radius:0"></div>Forest Road</div>
+        </div>
+
+        <!-- Coords -->
+        <div class="map-coords">4.3927° N · 102.3854° E</div>
+      </div>
+    </div>
+
+    <!-- Water Level Trend -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title"><div class="panel-title-icon">💧</div>WATER LEVEL · 24H</div>
+      </div>
+      <div style="padding:12px">
+        <div style="margin-bottom:8px">
+          <div style="font-family:var(--font-mono);font-size:9px;color:var(--text-muted);margin-bottom:4px">NODE-01</div>
+          <svg viewBox="0 0 280 70" style="width:100%;height:60px">
+            <line x1="0" y1="20" x2="280" y2="20" class="chart-grid-line"/>
+            <line x1="0" y1="50" x2="280" y2="50" class="chart-grid-line"/>
+            <polyline points="0,42 20,40 40,38 60,35 80,42 100,38 120,36 140,40 160,38 180,42 200,36 220,40 240,38 260,35 280,37"
+              fill="none" stroke="var(--accent-cyan)" stroke-width="1.5" stroke-linecap="round"
+              style="filter:drop-shadow(0 0 3px rgba(0,188,212,0.4))"/>
+            <text x="0" y="65" font-family="Space Mono" font-size="6" fill="#3D5C44">09:30</text>
+            <text x="240" y="65" font-family="Space Mono" font-size="6" fill="#3D5C44">09:00</text>
+            <text x="2" y="18" font-family="Space Mono" font-size="6" fill="#3D5C44">430mm</text>
+            <text x="2" y="48" font-family="Space Mono" font-size="6" fill="#3D5C44">400mm</text>
+          </svg>
+        </div>
+        <div style="margin-bottom:8px;border-top:1px solid var(--border);padding-top:8px">
+          <div style="font-family:var(--font-mono);font-size:9px;color:var(--text-muted);margin-bottom:4px">NODE-02 · Declining</div>
+          <svg viewBox="0 0 280 70" style="width:100%;height:60px">
+            <line x1="0" y1="20" x2="280" y2="20" class="chart-grid-line"/>
+            <line x1="0" y1="50" x2="280" y2="50" class="chart-grid-line"/>
+            <polyline points="0,22 20,24 40,28 60,30 80,32 100,35 120,38 140,40 160,43 180,46 200,48 220,50 240,52 260,54 280,55"
+              fill="none" stroke="var(--accent-amber)" stroke-width="1.5" stroke-linecap="round"
+              style="filter:drop-shadow(0 0 3px rgba(255,179,0,0.4))"/>
+            <text x="0" y="65" font-family="Space Mono" font-size="6" fill="#3D5C44">09:30</text>
+            <text x="240" y="65" font-family="Space Mono" font-size="6" fill="#3D5C44">09:00</text>
+            <text x="2" y="18" font-family="Space Mono" font-size="6" fill="#3D5C44">995mm</text>
+            <text x="2" y="48" font-family="Space Mono" font-size="6" fill="#3D5C44">950mm</text>
+          </svg>
+        </div>
+        <div style="padding:8px;background:rgba(255,179,0,0.05);border:1px solid rgba(255,179,0,0.1);border-radius:var(--radius-sm)">
+          <div style="font-family:var(--font-mono);font-size:9px;color:var(--accent-amber)">⬇ NODE-02 water level declining steadily over 24h. Monitor.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sensor Log Table -->
+    <div class="panel" id="tab-logs">
+      <div class="panel-header">
+        <div class="panel-title"><div class="panel-title-icon">≡</div>SENSOR SNAPSHOT LOG</div>
+      </div>
+      <div style="overflow:hidden;max-height:280px;overflow-y:auto;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>TIME</th>
+              <th>NODE</th>
+              <th>TEMP</th>
+              <th>RH%</th>
+              <th>STATUS</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td class="td-highlight">09:29</td><td>N-01</td><td>28.7°C</td><td>43.9</td><td><span class="td-badge normal">● NORMAL</span></td></tr>
+            <tr><td class="td-highlight">09:29</td><td>N-02</td><td>26.2°C</td><td>53.4</td><td><span class="td-badge normal">● NORMAL</span></td></tr>
+            <tr><td class="td-highlight">09:14</td><td>N-01</td><td>28.5°C</td><td>44.1</td><td><span class="td-badge normal">● NORMAL</span></td></tr>
+            <tr><td class="td-highlight">09:14</td><td>N-02</td><td>26.0°C</td><td>53.8</td><td><span class="td-badge normal">● NORMAL</span></td></tr>
+            <tr><td class="td-highlight">08:59</td><td>N-01</td><td>28.1°C</td><td>44.5</td><td><span class="td-badge normal">● NORMAL</span></td></tr>
+            <tr><td class="td-highlight">08:59</td><td>N-02</td><td>25.9°C</td><td>54.0</td><td><span class="td-badge normal">● NORMAL</span></td></tr>
+            <tr><td class="td-highlight">01:05</td><td>CO₂</td><td>—</td><td>—</td><td><span class="td-badge high">✕ OFFLINE</span></td></tr>
+            <tr><td class="td-highlight">23:02</td><td>N-01</td><td>29.3°C</td><td>41.2</td><td><span class="td-badge elevated">⚠ ELEVATED</span></td></tr>
+            <tr><td class="td-highlight">23:02</td><td>N-02</td><td>27.4°C</td><td>50.1</td><td><span class="td-badge normal">● NORMAL</span></td></tr>
+            <tr><td class="td-highlight">21:00</td><td>WX</td><td>28.8°C</td><td>89.0</td><td><span class="td-badge normal">● NORMAL</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom spacer -->
+  <div style="height:20px"></div>
+
+</main>
+
+<script>
+// ─── LIVE CLOCK ───
+function updateClock() {
+  const now = new Date();
+  const t = now.toLocaleTimeString('en-MY', { hour12: false });
+  document.getElementById('clockPill').textContent = t;
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ─── CAMERA TIMESTAMPS ───
+function updateCamTimes() {
+  const now = new Date();
+  const t = now.toLocaleTimeString('en-MY', { hour12: false });
+  document.querySelectorAll('.cam-timestamp').forEach(el => {
+    el.textContent = t;
+  });
+}
+setInterval(updateCamTimes, 5000);
+
+// ─── SIREN TRIGGER ───
+let sirenActive = false;
+function triggerSiren() {
+  if (sirenActive) return;
+  const confirmed = confirm(
+    '⚠ EMERGENCY ACTION\n\nActivate Manual Siren at TN-01 Station?\n\nThis action will be logged and is irreversible without operator override.\n\nPress OK to confirm.'
+  );
+  if (confirmed) {
+    sirenActive = true;
+    document.querySelectorAll('.siren-btn, .emergency-btn').forEach(b => {
+      if (b.textContent.includes('SIREN')) {
+        b.style.background = 'rgba(244,67,54,0.3)';
+        b.style.borderColor = '#F44336';
+        b.textContent = '🚨 SIREN ACTIVE';
+      }
+    });
+    setTimeout(() => {
+      sirenActive = false;
+      document.querySelectorAll('.siren-btn').forEach(b => {
+        b.style.background = '';
+        b.style.borderColor = '';
+        b.textContent = '⚠ MANUAL SIREN';
+      });
+    }, 10000);
+  }
+}
+
+// ─── TAB SWITCHING (smooth-scroll to section) ───
+function switchTab(btn, tab) {
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  const target = document.getElementById('tab-' + tab);
+  if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// Keep the active tab in sync while the user scrolls freely
+const tabSections = ['overview','sensors','cameras','analytics','alerts','weather','map','satellite','logs']
+  .map(id => document.getElementById('tab-' + id)).filter(Boolean);
+const navButtons = Array.from(document.querySelectorAll('.nav-tab'));
+let scrollSyncTimer = null;
+window.addEventListener('scroll', () => {
+  clearTimeout(scrollSyncTimer);
+  scrollSyncTimer = setTimeout(() => {
+    const scrollPos = window.scrollY + 140;
+    let current = tabSections[0];
+    for (const sec of tabSections) {
+      if (sec.offsetTop <= scrollPos) current = sec;
+    }
+    if (!current) return;
+    const idx = tabSections.indexOf(current);
+    navButtons.forEach(b => b.classList.remove('active'));
+    if (navButtons[idx]) navButtons[idx].classList.add('active');
+  }, 80);
+}, { passive: true });
+
+// ─── LIVE WEATHER (Open-Meteo, free public API — no key required) ───
+// Coordinates: Taman Negara HQ, Kuala Tahan, Pahang, Malaysia
+const TN_LAT = 4.3927, TN_LON = 102.3854;
+
+const WMO_LABELS = {
+  0:'Clear sky',1:'Mainly clear',2:'Partly cloudy',3:'Overcast',
+  45:'Fog',48:'Rime fog',51:'Light drizzle',53:'Drizzle',55:'Dense drizzle',
+  61:'Light rain',63:'Rain',65:'Heavy rain',80:'Rain showers',81:'Rain showers',82:'Violent showers',
+  95:'Thunderstorm',96:'Thunderstorm w/ hail',99:'Severe thunderstorm'
+};
+
+function fwiRiskFromWeather(tempC, rh, windKmh, rainMm) {
+  // Simplified fire-danger heuristic (not the full Canadian FWI system —
+  // that needs multi-day drying history). Good enough for a live indicator.
+  let score = 0;
+  score += Math.max(0, (tempC - 25)) * 2.2;
+  score += Math.max(0, (60 - rh)) * 0.9;
+  score += Math.min(windKmh, 30) * 0.6;
+  score -= Math.min(rainMm, 20) * 4;
+  score = Math.max(0, score);
+  const fwi = +(score / 12).toFixed(2);
+  let level = 'LOW', color = 'var(--accent-green)';
+  if (fwi >= 12) { level = 'EXTREME'; color = 'var(--accent-red)'; }
+  else if (fwi >= 7) { level = 'HIGH'; color = 'var(--accent-fire)'; }
+  else if (fwi >= 3) { level = 'MODERATE'; color = 'var(--accent-amber)'; }
+  return { fwi, level, color };
+}
+
+async function loadLiveWeather() {
+  try {
+    const wxUrl = `https://api.open-meteo.com/v1/forecast?latitude=${TN_LAT}&longitude=${TN_LON}` +
+      `&current=temperature_2m,relative_humidity_2m,surface_pressure,wind_speed_10m,wind_direction_10m,` +
+      `cloud_cover,precipitation,weather_code&timezone=Asia%2FKuala_Lumpur`;
+    const aqUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${TN_LAT}&longitude=${TN_LON}` +
+      `&current=pm10,pm2_5&timezone=Asia%2FKuala_Lumpur`;
+
+    const [wxRes, aqRes] = await Promise.all([fetch(wxUrl), fetch(aqUrl)]);
+    if (!wxRes.ok) throw new Error('weather fetch failed');
+    const wx = await wxRes.json();
+    const cur = wx.current;
+
+    const temp = cur.temperature_2m;
+    const hum = cur.relative_humidity_2m;
+    const pressureKpa = (cur.surface_pressure / 10).toFixed(1);
+    const wind = cur.wind_speed_10m;
+    const windDir = cur.wind_direction_10m;
+    const cloud = cur.cloud_cover;
+    const rain = cur.precipitation;
+    const wCode = cur.weather_code;
+    const dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+    const dirLabel = dirs[Math.round(windDir / 22.5) % 16];
+
+    document.getElementById('wxTemp').innerHTML = `${temp.toFixed(1)}<span class="weather-unit">°C</span>`;
+    document.getElementById('wxHum').innerHTML = `${hum}<span class="weather-unit">%</span>`;
+    document.getElementById('wxPressure').innerHTML = `${pressureKpa}<span class="weather-unit">kPa</span>`;
+    document.getElementById('wxWind').innerHTML = `${wind.toFixed(1)}<span class="weather-unit">km/h</span>`;
+    document.getElementById('wxWindLabel').textContent = `Wind · ${dirLabel}`;
+    document.getElementById('wxCloud').innerHTML = `${cloud}<span class="weather-unit">%</span>`;
+    document.getElementById('wxRain').innerHTML = `${rain.toFixed(1)}<span class="weather-unit">mm</span>`;
+
+    document.getElementById('kpiTempVal').innerHTML = `${temp.toFixed(1)}<span class="kpi-unit">°C</span>`;
+    document.getElementById('kpiHumVal').innerHTML = `${hum}<span class="kpi-unit">%</span>`;
+
+    const risk = fwiRiskFromWeather(temp, hum, wind, rain);
+    document.getElementById('fwiVal').textContent = risk.fwi;
+    const levelEl = document.getElementById('fwiLevel');
+    levelEl.textContent = risk.level;
+    levelEl.style.color = risk.color;
+
+    const tickerWeatherText = `WEATHER · ${WMO_LABELS[wCode] || 'N/A'} · Air:${temp.toFixed(1)}°C · Wind:${wind.toFixed(1)}km/h ${dirLabel} · Pressure:${pressureKpa}kPa`;
+    document.querySelectorAll('.ticker-weather').forEach(el => el.textContent = tickerWeatherText);
+    const tickerFwiText = `FWI: ${risk.fwi} · RISK: ${risk.level} · 4 CAMERAS REF`;
+    document.querySelectorAll('.ticker-fwi').forEach(el => el.textContent = tickerFwiText);
+
+    if (aqRes.ok) {
+      const aq = await aqRes.json();
+      const pm10 = aq.current.pm10, pm25 = aq.current.pm2_5;
+      document.getElementById('wxPM10').innerHTML = `${pm10}<span class="weather-unit">µg/m³</span>`;
+      document.getElementById('wxPM25').innerHTML = `${pm25}<span class="weather-unit">µg/m³</span>`;
+      document.querySelectorAll('.ticker-pm').forEach(el =>
+        el.textContent = `PM10:${pm10}µg/m³ · PM2.5:${pm25}µg/m³ · Noise:37dB`);
+      const pm10Label = pm10 <= 50 ? 'Good' : pm10 <= 100 ? 'Moderate' : 'Unhealthy';
+      document.getElementById('kpiPM10Val').innerHTML = `${pm10}<span class="kpi-unit">µg</span>`;
+      document.getElementById('kpiPM10Footer').innerHTML = `<span class="kpi-trend">↑</span> PM10 · ${pm10Label}`;
+    }
+  } catch (err) {
+    console.error('Live weather fetch failed:', err);
+    const badge = document.getElementById('wxLiveBadge');
+    if (badge) { badge.innerHTML = '<div class="dot" style="background:var(--accent-red)"></div>OFFLINE'; }
+    document.querySelectorAll('.ticker-weather').forEach(el => el.textContent = 'WEATHER · Live feed unavailable — check network');
+  }
+}
+
+loadLiveWeather();
+setInterval(loadLiveWeather, 5 * 60 * 1000); // refresh every 5 minutes
+
+// ─── SATELLITE FIRE DETECTION (NASA GIBS WMS — keyless) ───
+// Bounding box: ~2° square around Taman Negara, Pahang (lat,lon order per WMS 1.3.0 + EPSG:4326)
+const SAT_BBOX = '3.4,101.4,5.4,103.4';
+const SAT_SIZE = 640;
+
+function isoDate(d) { return d.toISOString().slice(0, 10); }
+
+function loadSatelliteImagery() {
+  // Imagery lag: go back 2 days to reliably have processed MODIS data available
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() - 2);
+  const dateStr = isoDate(d);
+
+  const gibsBase = 'https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi';
+  const common = `SERVICE=WMS&REQUEST=GetMap&VERSION=1.3.0&CRS=EPSG:4326&BBOX=${SAT_BBOX}&WIDTH=${SAT_SIZE}&HEIGHT=${SAT_SIZE}&TIME=${dateStr}`;
+
+  const baseUrl = `${gibsBase}?${common}&LAYERS=MODIS_Terra_CorrectedReflectance_TrueColor&FORMAT=image/jpeg`;
+  const fireUrl = `${gibsBase}?${common}&LAYERS=MODIS_Combined_Thermal_Anomalies_All&FORMAT=image/png&TRANSPARENT=true`;
+
+  document.getElementById('satBaseImg').src = baseUrl;
+  document.getElementById('satFireImg').src = fireUrl;
+  document.getElementById('satDateLabel').textContent = `Imagery date: ${dateStr} (UTC)`;
+
+  const worldviewUrl = `https://worldview.earthdata.nasa.gov/?v=101.4,3.4,103.4,5.4&t=${dateStr}` +
+    `&l=MODIS_Combined_Thermal_Anomalies_All,MODIS_Terra_CorrectedReflectance_TrueColor,Coastlines`;
+  document.getElementById('satWorldviewLink').href = worldviewUrl;
+}
+
+loadSatelliteImagery();
+setInterval(loadSatelliteImagery, 60 * 60 * 1000); // refresh hourly (new date at UTC midnight)
+
+// ─── WATER LEVEL NODE 02 WARNING PULSE ───
+setInterval(() => {
+  const alerts = document.querySelectorAll('.alert-item');
+  alerts.forEach((a, i) => {
+    a.style.opacity = '0.7';
+    setTimeout(() => a.style.opacity = '1', 300 + i * 100);
+  });
+}, 8000);
+</script>
+
+</body>
+</html>
